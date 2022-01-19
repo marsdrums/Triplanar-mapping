@@ -1,0 +1,67 @@
+<jittershader name="fill-flat-quads">
+	<description>Default Shader </description>
+	<param name="pos" type="vec3" state="POSITION" />
+	<param name="nor" type="vec3" state="NORMAL" />
+	<param name="MVP" type="mat4" state="MODELVIEW_PROJECTION_MATRIX" />
+	<param name="tex" type="int" default="0" />
+	<param name="color" type="vec4" state="COLOR" />
+	<language name="glsl" version="1.5">
+		<bind param="pos" program="vp" />
+		<bind param="nor" program="vp" />
+		<bind param="MVP" program="vp" />
+		<bind param="color" program="vp" />
+		<bind param="tex" program="fp" />
+		<program name="vp" type="vertex">
+<![CDATA[
+#version 330 core
+uniform mat4 MVP;
+in vec3 pos, nor;
+in vec4 color;
+
+out jit_PerVertex {
+	flat vec4 color;
+	smooth vec3 nor;
+	smooth vec3 pos;	
+} jit_out;
+
+void main() {	
+	gl_Position = MVP * vec4(pos, 1.);	
+	jit_out.color = color;
+	jit_out.nor = nor;
+	jit_out.pos = pos;
+}
+]]>
+		</program>
+		<program name="fp" type="fragment">
+<![CDATA[
+#version 330 core
+
+uniform sampler2D tex;
+
+in jit_PerVertex {
+	flat vec4 color;
+	smooth vec3 nor;
+	smooth vec3 pos;
+} jit_in;
+
+out vec4 color;
+
+
+vec4 triplanar(sampler2D tex, vec3 nor, vec3 pos){
+
+	vec3 k = normalize(pow(abs(jit_in.nor), vec3(50.)));
+	vec2 Xuv = pos.yz;
+	vec2 Yuv = pos.xz;
+	vec2 Zuv = pos.xy;
+	vec4 X = texture(tex, Xuv)*k.x;
+	vec4 Y = texture(tex, Yuv)*k.y;
+	vec4 Z = texture(tex, Zuv)*k.z;
+	return X+Y+Z;
+}
+void main() {
+	color = triplanar(tex, jit_in.nor, jit_in.pos);
+}	
+]]>
+		</program>
+	</language>
+</jittershader>
