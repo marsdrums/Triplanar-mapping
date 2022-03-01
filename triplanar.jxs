@@ -3,6 +3,7 @@
 	<param name="pos" type="vec3" state="POSITION" />
 	<param name="nor" type="vec3" state="NORMAL" />
 	<param name="MVP" type="mat4" state="MODELVIEW_PROJECTION_MATRIX" />
+	<param name="M" type="mat4" state="WORLD_MATRIX" />
 	<param name="tex" type="int" default="0" />
 	<param name="color" type="vec4" state="COLOR" />
 	<language name="glsl" version="1.5">
@@ -11,6 +12,7 @@
 		<bind param="MVP" program="vp" />
 		<bind param="color" program="vp" />
 		<bind param="tex" program="fp" />
+		<bind param="M" program="fp" />
 		<program name="vp" type="vertex">
 <![CDATA[
 #version 330 core
@@ -37,6 +39,7 @@ void main() {
 #version 330 core
 
 uniform sampler2D tex;
+uniform mat4 M;
 
 in jit_PerVertex {
 	flat vec4 color;
@@ -47,19 +50,35 @@ in jit_PerVertex {
 out vec4 color;
 
 
-vec4 triplanar(sampler2D tex, vec3 nor, vec3 pos){
+//triplanar mapping
+vec4 	triplanar(sampler2D tex, vec3 nor, vec3 pos, inout vec2 uv){
 
-	vec3 k = normalize(pow(abs(jit_in.nor), vec3(50.)));
-	vec2 Xuv = pos.yz;
-	vec2 Yuv = pos.xz;
-	vec2 Zuv = pos.xy;
-	vec4 X = texture(tex, Xuv)*k.x;
-	vec4 Y = texture(tex, Yuv)*k.y;
-	vec4 Z = texture(tex, Zuv)*k.z;
-	return X+Y+Z;
+	vec3 	k = normalize(pow(abs(nor), vec3(70.)));
+	vec2 	Xuv = pos.yz;
+			Xuv.x = nor.x < 0. ? Xuv.x : -Xuv.x;
+	vec2 	Yuv = pos.xz;
+			Yuv.x = nor.y < 0. ? Yuv.x : -Yuv.x;
+	vec2 	Zuv = pos.xy;
+			Zuv.x = nor.z >= 0. ? Zuv.x : -Zuv.x;
+			Xuv.y += 0.5;
+			Zuv.x += 0.5;
+	vec4 	X = texture(tex, Xuv)*k.x;
+	vec4 	Y = texture(tex, Yuv)*k.y;
+	vec4 	Z = texture(tex, Zuv)*k.z;
+			uv = (Xuv*k.x+Yuv*k.y+Zuv*k.z);//(k.x+k.y+k.z);
+	return 	(X+Y+Z)/(k.x+k.y+k.z);
 }
 void main() {
-	color = triplanar(tex, jit_in.nor, jit_in.pos);
+
+
+	vec2 uv;
+	vec3 nor = normalize(jit_in.nor);
+	vec4 triTex = triplanar(tex, nor, jit_in.pos, uv);
+	float deltax = dFdx(uv.x);
+	float deltay = dFdy(uv.y);
+	vec3 tan = (M * vec4( normalize(vec3(deltax, deltay, 0.)) , 0.)).xyz;
+	vec3 bit = cross(tan, normalize((M * vec4(nor, 0.)).xyz));
+	color = vec4(uv, 0. ,1.);//vec4(normalize(vec2(deltax, deltay)), 0., 1.);
 }	
 ]]>
 		</program>
